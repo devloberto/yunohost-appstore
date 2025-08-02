@@ -19,6 +19,7 @@ from utils import get_catalog
 
 APPSTORE_PATH = Path(__file__).resolve().parent
 
+
 @cache
 def config() -> dict[str, Any]:
     try:
@@ -45,16 +46,25 @@ def catalog() -> dict:
     return get_catalog()
 
 
-def _ci_apps_main_results() -> dict:
-    return requests.get("https://ci-apps.yunohost.org/ci/api/results", timeout=30).json()
+@cache
+def ci_apps_bullseye_results() -> dict:
+    return requests.get(
+        "https://ci-apps-bullseye.yunohost.org/ci/api/results", timeout=60
+    ).json()
 
 
-def _ci_apps_nextdebian_results() -> dict:
-    return requests.get("https://ci-apps-bookworm.yunohost.org/ci/api/results", timeout=30).json()
+@cache
+def ci_apps_bookworm_results() -> dict:
+    return requests.get(
+        "https://ci-apps.yunohost.org/ci/api/results", timeout=60
+    ).json()
 
 
-ci_apps_main_results = _ci_apps_main_results()
-ci_apps_nextdebian_results = _ci_apps_nextdebian_results()
+@cache
+def ci_apps_trixie_results() -> dict:
+    return requests.get(
+        "https://ci-apps-trixie.yunohost.org/ci/api/results", timeout=60
+    ).json()
 
 
 def get_app_ci_results(results: dict[str, dict], name: str) -> Optional[dict]:
@@ -127,9 +137,13 @@ def get_consolidated_infos(name_and_infos: Tuple[str, dict]) -> Tuple[str, dict]
         "maintainers": infos["manifest"]["maintainers"],
         "antifeatures": infos["antifeatures"],
         "packaging_format": infos["manifest"]["packaging_format"],
+        "helpers_version": str(
+            infos["manifest"]["integration"].get("helpers_version", "2")
+        ),
         "ci_results": {
-            "main": get_app_ci_results(ci_apps_main_results, name),
-            "nextdebian": get_app_ci_results(ci_apps_nextdebian_results, name),
+            "bullseye": get_app_ci_results(ci_apps_bullseye_results(), name),
+            "bookworm": get_app_ci_results(ci_apps_bookworm_results(), name),
+            "trixie": get_app_ci_results(ci_apps_trixie_results(), name),
         },
     }
 
@@ -148,7 +162,9 @@ def main() -> None:
         with logging_redirect_tqdm():
             tasks = pool.imap(get_consolidated_infos, catalog()["apps"].items())
 
-            for result in tqdm.tqdm(tasks, total=len(catalog()["apps"].keys()), ascii=" ·#"):
+            for result in tqdm.tqdm(
+                tasks, total=len(catalog()["apps"].keys()), ascii=" ·#"
+            ):
                 if result is None:
                     continue
                 name, infos = result

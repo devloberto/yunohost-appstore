@@ -41,6 +41,8 @@ from utils import (
 
 app = Flask(__name__, static_url_path="/assets", static_folder="assets")
 
+MAIN_CI = "bookworm"
+
 try:
     config = toml.loads(open("config.toml").read())
 except Exception as e:
@@ -103,7 +105,7 @@ def hours_ago(timestamp):
 def format_datetime(value, format="%d %b %Y %I:%M %p"):
     if value is None:
         return ""
-    return datetime.strptime(value, "%b %d %Y").strftime(format)
+    return datetime.strptime(value, "%d %b %Y").strftime(format)
 
 
 @app.context_processor
@@ -516,14 +518,14 @@ def charts():
             [
                 infos
                 for infos in dashboard_data.values()
-                if infos.get("ci_results", {}).get("main").get("level") == i
+                if infos.get("ci_results", {}).get(MAIN_CI).get("level") == i
             ]
         )
     level_summary["unknown"] = len(
         [
             infos
             for infos in dashboard_data.values()
-            if infos.get("ci_results", {}).get("main").get("level") in [None, "?"]
+            if infos.get("ci_results", {}).get(MAIN_CI).get("level") in [None, "?"]
         ]
     )
 
@@ -566,7 +568,7 @@ def badge(app, type="integration"):
 
     catalog_level = catalog.get(app, {}).get("level")
     main_ci_level = (
-        data.get(app, {}).get("ci_results", {}).get("main", {}).get("level", "?")
+        data.get(app, {}).get("ci_results", {}).get(MAIN_CI, {}).get("level", "?")
     )
 
     if type == "integration":
@@ -589,6 +591,11 @@ def badge(app, type="integration"):
             badge = "unmaintained"
         else:
             badge = "empty"
+    elif type == "cilevel":
+        if app in catalog and main_ci_level:
+            badge = f"level{main_ci_level}_v2"
+        else:
+            badge = "unknown_v2"
     else:
         badge = "empty"
 
